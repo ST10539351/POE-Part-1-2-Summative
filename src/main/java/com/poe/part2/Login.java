@@ -1,145 +1,115 @@
 package com.poe.part2;
 
+import java.util.regex.Pattern;
+
 public class Login {
 
-    private String username;
-    private String password;
-    private String cellPhoneNumber;
+    // Messages from the Part 1 test-data table (these are the ones the unit tests check).
+    public static final String USERNAME_OK = "Username successfully captured.";
+    public static final String USERNAME_BAD = "Username is not correctly formatted; please ensure that your "
+            + "username contains an underscore and is no more than five characters in length.";
+    public static final String PASSWORD_OK = "Password successfully captured.";
+    public static final String PASSWORD_BAD = "Password is not correctly formatted; please ensure that the "
+            + "password contains at least eight characters, a capital letter, a number, and a special character.";
+    public static final String CELL_OK = "Cell number successfully captured.";
+    public static final String CELL_BAD = "Cell number is incorrectly formatted or does not contain an "
+            + "international code; please correct the number and try again.";
+    public static final String REGISTER_OK = "User has been registered successfully.";
+    public static final String LOGIN_FAILED = "Username or password incorrect, please try again.";
+
+    // International code (+27) followed by the number, no more than ten digits after the code.
+    private static final Pattern CELL_PATTERN = Pattern.compile("^\\+27\\d{1,10}$");
+
+    // Details stored when the user registers.
     private String firstName;
     private String lastName;
+    private String registeredUsername;
+    private String registeredPassword;
+    private String registeredCell;
+    private boolean registered = false;
 
-    public Login() {
+    /** The username must contain an underscore and be no more than five characters long. */
+    public boolean checkUserName(String username) {
+        return username != null && username.contains("_") && username.length() <= 5;
     }
 
-    public Login(String firstName, String lastName, String username, String password, String cellPhoneNumber) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.username = username;
-        this.password = password;
-        this.cellPhoneNumber = cellPhoneNumber;
-    }
-
-    public boolean checkUserName() {
-        return username != null
-                && username.contains("_")
-                && username.length() <= 5;
-    }
-
-    public boolean checkPasswordComplexity() {
+    /** At least eight characters, a capital letter, a number and a special character. */
+    public boolean checkPasswordComplexity(String password) {
         if (password == null || password.length() < 8) {
             return false;
         }
-
         boolean hasCapital = false;
         boolean hasNumber = false;
         boolean hasSpecial = false;
-
         for (char c : password.toCharArray()) {
             if (Character.isUpperCase(c)) {
                 hasCapital = true;
             } else if (Character.isDigit(c)) {
                 hasNumber = true;
-            } else if (!Character.isLetterOrDigit(c)) {
+            } else if (!Character.isLetter(c) && !Character.isWhitespace(c)) {
                 hasSpecial = true;
             }
         }
-
         return hasCapital && hasNumber && hasSpecial;
     }
 
-    public boolean checkCellPhoneNumber() {
-        if (cellPhoneNumber == null) {
-            return false;
-        }
-        // Regex source: https://stackoverflow.com/questions/4058001/validate-south-africa-cell-phone-number
-        String regex = "^\\+27\\d{1,10}$";
-        return cellPhoneNumber.matches(regex);
+    /** International country code followed by the number (no more than ten characters). */
+    public boolean checkCellPhoneNumber(String cellPhoneNumber) {
+        return cellPhoneNumber != null && CELL_PATTERN.matcher(cellPhoneNumber).matches();
     }
 
-    public String registerUser() {
-        StringBuilder message = new StringBuilder();
-
-        if (!checkUserName()) {
-            message.append("Username is not correctly formatted; please ensure that your username contains an underscore and is no more than five characters in length.");
-        } else {
-            message.append("Username successfully captured.");
-        }
-
-        message.append("\n");
-
-        if (!checkPasswordComplexity()) {
-            message.append("Password is not correctly formatted; please ensure that the password contains at least eight characters, a capital letter, a number, and a special character.");
-        } else {
-            message.append("Password successfully captured.");
-        }
-
-        message.append("\n");
-
-        if (!checkCellPhoneNumber()) {
-            message.append("Cell phone number incorrectly formatted or does not contain international code.");
-        } else {
-            message.append("Cell phone number successfully added.");
-        }
-
-        if (checkUserName() && checkPasswordComplexity() && checkCellPhoneNumber()) {
-            return message.toString() + "\nUser has been registered successfully.";
-        }
-
-        return message.toString();
+    public String usernameMessage(String username) {
+        return checkUserName(username) ? USERNAME_OK : USERNAME_BAD;
     }
 
-    public boolean loginUser(String enteredUsername, String enteredPassword) {
-        return username != null
-                && password != null
-                && username.equals(enteredUsername)
-                && password.equals(enteredPassword);
+    public String passwordMessage(String password) {
+        return checkPasswordComplexity(password) ? PASSWORD_OK : PASSWORD_BAD;
     }
 
-    public String returnLoginStatus(String enteredUsername, String enteredPassword) {
-        if (loginUser(enteredUsername, enteredPassword)) {
+    public String cellMessage(String cellPhoneNumber) {
+        return checkCellPhoneNumber(cellPhoneNumber) ? CELL_OK : CELL_BAD;
+    }
+
+    /** Registers the user if every condition is met, otherwise says which one failed. */
+    public String registerUser(String firstName, String lastName, String username,
+                               String password, String cellPhoneNumber) {
+        if (!checkUserName(username)) {
+            return USERNAME_BAD;
+        }
+        if (!checkPasswordComplexity(password)) {
+            return PASSWORD_BAD;
+        }
+        if (!checkCellPhoneNumber(cellPhoneNumber)) {
+            return CELL_BAD;
+        }
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.registeredUsername = username;
+        this.registeredPassword = password;
+        this.registeredCell = cellPhoneNumber;
+        this.registered = true;
+        return REGISTER_OK;
+    }
+
+    /** True only if the details match the ones stored at registration. */
+    public boolean loginUser(String username, String password) {
+        return registered
+                && registeredUsername.equals(username)
+                && registeredPassword.equals(password);
+    }
+
+    public String returnLoginStatus(String username, String password) {
+        if (loginUser(username, password)) {
             return "Welcome " + firstName + ", " + lastName + " it is great to see you again.";
-        } else {
-            return "Username or password incorrect, please try again.";
         }
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getCellPhoneNumber() {
-        return cellPhoneNumber;
-    }
-
-    public void setCellPhoneNumber(String cellPhoneNumber) {
-        this.cellPhoneNumber = cellPhoneNumber;
+        return LOGIN_FAILED;
     }
 
     public String getFirstName() {
         return firstName;
     }
 
-    public void setFirstName(String firstName) {
-        this.firstName = firstName;
-    }
-
     public String getLastName() {
         return lastName;
-    }
-
-    public void setLastName(String lastName) {
-        this.lastName = lastName;
     }
 }
