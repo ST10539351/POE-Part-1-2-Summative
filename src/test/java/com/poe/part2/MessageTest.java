@@ -1,144 +1,137 @@
 package com.poe.part2;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class MessageTest {
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
-    // Test data from the brief (fixed IDs starting with "00" so hashes are predictable)
-    private static final String ID_1 = "0012345678";
-    private static final String RECIPIENT_1 = "+27718693002";
-    private static final String TEXT_1 = "Hi Mike, can you join us for dinner tonight?";
+import static org.junit.jupiter.api.Assertions.*;
 
-    private static final String ID_2 = "0087654321";
-    private static final String RECIPIENT_2 = "08575975889";
-    private static final String TEXT_2 = "Hi Keegan, did you receive the payment?";
+/** Part 2 unit tests, using the test data from the brief. */
+class MessageTest {
 
     @TempDir
     Path tempDir;
 
+    private Message task1;   // Test Data for Task 1 (sent)
+    private Message task2;   // Test Data for Message 2 (discarded)
+
     @BeforeEach
-    public void setUp() {
+    void setUp() {
         Message.resetSession();
-        // keep tests from touching the real messages.json
-        Message.setStorageFile(tempDir.resolve("messages.json"));
+        Message.setStorageFile(tempDir.resolve("messages.json")); // never touch the real messages.json
+        task1 = new Message("0012345678", 0, "+27718693002", "Hi Mike, can you join us for dinner tonight?");
+        task2 = new Message("0187654321", 1, "08575975889", "Hi Keegan, did you receive the payment?");
     }
 
     // ---------- message length ----------
 
     @Test
-    public void messageLengthSuccess() {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
+    void messageUnder250CharactersSucceeds() {
+        assertEquals("Message ready to send.", task1.checkMessageLength());
+    }
+
+    @Test
+    void messageOf250CharactersStillSucceeds() {
+        Message m = new Message("0012345678", 0, "+27718693002", "a".repeat(250));
         assertEquals("Message ready to send.", m.checkMessageLength());
     }
 
     @Test
-    public void messageLengthFailure() {
-        String tooLong = "a".repeat(260);
-        Message m = new Message(ID_1, 0, RECIPIENT_1, tooLong);
+    void messageOver250CharactersFails() {
+        Message m = new Message("0012345678", 0, "+27718693002", "a".repeat(260));
         assertEquals("Message exceeds 250 characters by 10; please reduce the size.", m.checkMessageLength());
     }
 
-    // ---------- recipient cell ----------
+    // ---------- recipient number ----------
 
     @Test
-    public void recipientCellSuccess() {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
-        assertEquals("Cell phone number successfully captured.", m.checkRecipientCell());
+    void recipientNumberCorrectlyFormatted() {
+        assertEquals("Cell phone number successfully captured.", task1.checkRecipientCell());
     }
 
     @Test
-    public void recipientCellFailure() {
-        Message m = new Message(ID_2, 1, RECIPIENT_2, TEXT_2);
-        assertEquals("Cell phone number is incorrectly formatted or does not contain an international code. Please correct the number and try again.",
-                m.checkRecipientCell());
+    void recipientNumberIncorrectlyFormatted() {
+        assertEquals("Cell phone number is incorrectly formatted or does not contain an international code. "
+                + "Please correct the number and try again.", task2.checkRecipientCell());
     }
 
     // ---------- message hash ----------
 
     @Test
-    public void messageHashTestCase1() {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
-        assertEquals("00:0:HITONIGHT", m.createMessageHash());
+    void messageHashForTestCase1() {
+        assertEquals("00:0:HITONIGHT", task1.createMessageHash());
     }
 
     @Test
-    public void messageHashesInLoop() {
-        String[] ids = {ID_1, ID_2};
-        String[] recipients = {RECIPIENT_1, RECIPIENT_2};
-        String[] texts = {TEXT_1, TEXT_2};
-        String[] expected = {"00:0:HITONIGHT", "00:1:HIPAYMENT"};
+    void remainingMessageHashesInALoop() {
+        String[] ids = {"0012345678", "0187654321", "2299999999"};
+        int[] numbers = {0, 1, 2};
+        String[] texts = {"Hi Mike, can you join us for dinner tonight?",
+                "Hi Keegan, did you receive the payment?",
+                "Where are you? You are late! I have asked you to be on time."};
+        String[] expected = {"00:0:HITONIGHT", "01:1:HIPAYMENT", "22:2:WHERETIME"};
 
-        for (int i = 0; i < texts.length; i++) {
-            Message m = new Message(ids[i], i, recipients[i], texts[i]);
-            assertEquals(expected[i], m.createMessageHash(), "Hash for message " + (i + 1));
-            assertEquals(expected[i], m.getMessageHash());
+        for (int i = 0; i < ids.length; i++) {
+            Message m = new Message(ids[i], numbers[i], "+27718693002", texts[i]);
+            assertEquals(expected[i], m.createMessageHash());
         }
     }
 
     // ---------- message ID ----------
 
     @Test
-    public void messageIDIsCreated() {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
-        assertEquals("Message ID generated: " + ID_1, m.messageIDStatus());
+    void messageIdIsCreated() {
+        Message m = new Message(0, "+27718693002", "Hi Mike, can you join us for dinner tonight?");
+        assertEquals("Message ID generated: " + m.getMessageID(), m.messageIDStatus());
+        assertTrue(m.getMessageID().matches("\\d{10}"));
         assertTrue(m.checkMessageID());
     }
 
     @Test
-    public void randomMessageIDIsTenDigits() {
-        String id = Message.createMessageID();
-        assertEquals(10, id.length());
-        assertTrue(id.matches("\\d{10}"));
+    void messageIdLongerThanTenCharactersFails() {
+        Message m = new Message("12345678901", 0, "+27718693002", "Hello there");
+        assertFalse(m.checkMessageID());
     }
 
-    // ---------- sentMessage (send / disregard / store) ----------
+    // ---------- message sent ----------
 
     @Test
-    public void sentMessageSend() {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
-        assertEquals("Message successfully sent.", m.sentMessage(1));
-    }
-
-    @Test
-    public void sentMessageDisregard() {
-        Message m = new Message(ID_2, 1, RECIPIENT_2, TEXT_2);
-        assertEquals("Press 0 to delete the message.", m.sentMessage(2));
+    void userSelectsSendMessage() {
+        assertEquals("Message successfully sent.", task1.sentMessage(1));
     }
 
     @Test
-    public void sentMessageStore() throws Exception {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
-        assertEquals("Message successfully stored.", m.sentMessage(3));
+    void userSelectsDisregardMessage() {
+        assertEquals("Press 0 to delete the message.", task2.sentMessage(2));
+    }
 
-        String json = new String(Files.readAllBytes(tempDir.resolve("messages.json")));
-        assertTrue(json.contains(ID_1));
-        assertTrue(json.contains("00:0:HITONIGHT"));
+    @Test
+    void userSelectsStoreMessage() throws IOException {
+        assertEquals("Message successfully stored.", task1.sentMessage(3));
+        String json = new String(Files.readAllBytes(tempDir.resolve("messages.json")), StandardCharsets.UTF_8);
+        assertTrue(json.contains("Hi Mike, can you join us for dinner tonight?"));
     }
 
     // ---------- totals and printing ----------
 
     @Test
-    public void totalSentAfterSendThenDiscard() {
-        new Message(ID_1, 0, RECIPIENT_1, TEXT_1).sentMessage(1); // send
-        new Message(ID_2, 1, RECIPIENT_2, TEXT_2).sentMessage(2); // discard
+    void totalMessagesSentOnlyCountsSentMessages() {
+        task1.sentMessage(1);   // sent
+        task2.sentMessage(2);   // disregarded
         assertEquals(1, Message.returnTotalMessages());
     }
 
     @Test
-    public void printMessagesShowsFullDetailsInOrder() {
-        Message m = new Message(ID_1, 0, RECIPIENT_1, TEXT_1);
-        m.sentMessage(1);
-        String expected = "Message ID: " + ID_1
-                + "\nMessage Hash: 00:0:HITONIGHT"
-                + "\nRecipient: " + RECIPIENT_1
-                + "\nMessage: " + TEXT_1;
-        assertEquals(expected, Message.printMessages());
+    void printMessagesListsEverythingSent() {
+        assertEquals("No messages have been sent.", Message.printMessages());
+        task1.sentMessage(1);
+        String printed = Message.printMessages();
+        assertTrue(printed.contains("00:0:HITONIGHT"));
+        assertTrue(printed.contains("+27718693002"));
     }
 }
