@@ -11,7 +11,6 @@ public class Main {
         Scanner scanner = new Scanner(System.in);
         Login login = new Login();
 
-        // Registration
         // ----- Part 1: register, then log in -----
         System.out.println("---Registration ---");
         register(scanner, login);
