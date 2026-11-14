@@ -1,14 +1,17 @@
 name: Java CI with Maven
 
+# Builds the project and runs all unit tests every time code is pushed.
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # The pom.xml lives in the POE_Part2 folder. If yours is at the repo root, delete these two lines.
+        working-directory: POE_Part2
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 17
@@ -17,8 +20,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
+          cache-dependency-path: POE_Part2/pom.xml
       - name: Build and run tests
-        run: mvn -B clean test
-        # If your repo root is JAVA-POE (with POE_Part2 as a subfolder),
-        # move this file to JAVA-POE/.github/workflows/ and uncomment:
-        # working-directory: POE_Part2
+        run: mvn -B test
